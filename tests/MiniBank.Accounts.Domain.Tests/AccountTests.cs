@@ -193,4 +193,85 @@ public class AccountTests
             typeof(AccountClosed));
     }
 
+    // ---------- Event sourcing: rebuilding from history ----------
+
+    [Fact]
+    public void Load_FromHistory_RebuildsSameState()
+    {
+        // Arrange: create an account "live" and take its events
+        var live = OpenGelAccount();
+        live.Deposit(Gel(100));
+        live.Withdraw(Gel(25.5m));
+        live.Deposit(Gel(3.25m));
+        var history = live.UncommittedEvents.ToList();
+
+        // Act: build a brand-new account from those events only
+        var loaded = new Account();
+        loaded.Load(history);
+
+        // Assert: identical state
+        loaded.Id.Should().Be(live.Id);
+        loaded.OwnerId.Should().Be(live.OwnerId);
+        loaded.Currency.Should().Be(live.Currency);
+        loaded.Status.Should().Be(live.Status);
+        loaded.Balance.Should().Be(Gel(77.75m));
+        loaded.Balance.Should().Be(live.Balance);
+        loaded.Version.Should().Be(3).And.Be(live.Version);
+    }
+
+    [Fact]
+    public void Load_FromHistory_HasNoUncommittedEvents()
+    {
+        var live = OpenGelAccount();
+        live.Deposit(Gel(10));
+
+        var loaded = new Account();
+        loaded.Load(live.UncommittedEvents);
+
+        loaded.UncommittedEvents.Should().BeEmpty("events from history are already saved");
+    }
+
+    [Fact]
+    public void Load_ThenNewCommand_OnlyNewEventIsUncommitted()
+    {
+        var live = OpenGelAccount();
+        live.Deposit(Gel(10));
+
+        var loaded = new Account();
+        loaded.Load(live.UncommittedEvents);
+        loaded.Withdraw(Gel(4));
+
+        loaded.UncommittedEvents.Should().ContainSingle()
+            .Which.Should().BeOfType<MoneyWithdrawn>();
+        loaded.Version.Should().Be(2);
+        loaded.Balance.Should().Be(Gel(6));
+    }
+
+    [Fact]
+    public void Load_ClosedAccountHistory_RebuildsClosedAccount()
+    {
+        var live = OpenGelAccount();
+        live.Close();
+
+        var loaded = new Account();
+        loaded.Load(live.UncommittedEvents);
+
+        loaded.Status.Should().Be(AccountStatus.Closed);
+        var act = () => loaded.Deposit(Gel(1));
+        act.Should().Throw<DomainException>().WithMessage("*closed*");
+    }
+
+    [Fact]
+    public void ClearUncommittedEvents_KeepsState_ButEmptiesList()
+    {
+        var account = OpenGelAccount();
+        account.Deposit(Gel(10));
+
+        account.ClearUncommittedEvents();
+
+        account.UncommittedEvents.Should().BeEmpty();
+        account.Balance.Should().Be(Gel(10));
+        account.Version.Should().Be(1);
+    }
+
 }
