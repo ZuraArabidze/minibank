@@ -18,11 +18,11 @@ public abstract class AggregateRoot<TId> where TId : notnull
     {
         foreach (var @event in history)
         {
-            foreach (var e in history) Mutate(e);
+            Mutate(@event);
         }
     }
 
-    public void Raise(IDomainEvent @event)
+    protected void Raise(IDomainEvent @event)
     {
         Mutate(@event);
         _uncommittedEvents.Add(@event);
