@@ -274,4 +274,40 @@ public class AccountTests
         account.Version.Should().Be(1);
     }
 
+    // ---------- Description length ----------
+
+    [Fact]
+    public void Deposit_DescriptionOf140Characters_IsAllowed()
+    {
+        var account = OpenGelAccount();
+        var description = new string('x', 140);
+
+        account.Deposit(Gel(10), description);
+
+        account.Balance.Should().Be(Gel(10));
+    }
+
+    [Fact]
+    public void Deposit_DescriptionLongerThan140Characters_Throws()
+    {
+        var account = OpenGelAccount();
+        var description = new string('x', 141);
+
+        var act = () => account.Deposit(Gel(10), description);
+
+        act.Should().Throw<DomainException>().WithMessage("*description*");
+    }
+
+    [Fact]
+    public void Withdraw_DescriptionLongerThan140Characters_Throws()
+    {
+        var account = OpenGelAccount();
+        account.Deposit(Gel(10));
+        var description = new string('x', 141);
+
+        var act = () => account.Withdraw(Gel(5), description);
+
+        act.Should().Throw<DomainException>().WithMessage("*description*");
+    }
+
 }

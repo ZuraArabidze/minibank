@@ -19,6 +19,7 @@ public sealed class Account : AggregateRoot<AccountId>
     public Currency Currency { get; private set; }
     public Money Balance { get; private set; }
     public AccountStatus Status { get; private set; }
+    public const int MaxDescriptionLength = 140;
 
     public Account() { }
 
@@ -37,6 +38,7 @@ public sealed class Account : AggregateRoot<AccountId>
         EnsureOpen();
         EnsurePositive(amount);
         EnsureCurrency(amount);
+        EnsureValidDescription(description);
 
         Raise(new MoneyDeposited { AccountId = Id, Amount = amount, Description = description });
     }
@@ -46,6 +48,7 @@ public sealed class Account : AggregateRoot<AccountId>
         EnsureOpen();
         EnsurePositive(amount);
         EnsureCurrency(amount);
+        EnsureValidDescription(description);
         EnsureSufficientFunds(amount);
 
         Raise(new MoneyWithdrawn { AccountId = Id, Amount = amount, Description = description });
@@ -82,6 +85,12 @@ public sealed class Account : AggregateRoot<AccountId>
     {
         if (amount > Balance)
             throw new DomainException($"Insufficient funds: balance {Balance}, requested {amount}.");
+    }
+
+    private static void EnsureValidDescription(string? description)
+    {
+        if (description is not null && description.Length > MaxDescriptionLength)
+            throw new DomainException($"Description cannot be longer than {MaxDescriptionLength} characters.");
     }
 
     protected override void When(IDomainEvent @event)
