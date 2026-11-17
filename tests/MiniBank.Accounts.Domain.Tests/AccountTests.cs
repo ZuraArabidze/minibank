@@ -126,4 +126,71 @@ public class AccountTests
         act.Should().Throw<DomainException>().WithMessage("*GEL*USD*");
     }
 
+    // ---------- Closing ----------
+
+    [Fact]
+    public void Close_WithZeroBalance_ClosesAccount()
+    {
+        var account = OpenGelAccount();
+
+        account.Close("customer request");
+
+        account.Status.Should().Be(AccountStatus.Closed);
+        account.UncommittedEvents.Last().Should().BeOfType<AccountClosed>();
+    }
+
+    [Fact]
+    public void Close_WithMoneyLeft_Throws()
+    {
+        var account = OpenGelAccount();
+        account.Deposit(Gel(0.01m));
+
+        var act = () => account.Close();
+
+        act.Should().Throw<DomainException>().WithMessage("*zero*");
+        account.Status.Should().Be(AccountStatus.Open);
+    }
+
+    [Fact]
+    public void Close_AlreadyClosed_Throws()
+    {
+        var account = OpenGelAccount();
+        account.Close();
+
+        var act = () => account.Close();
+
+        act.Should().Throw<DomainException>().WithMessage("*closed*");
+    }
+
+    [Fact]
+    public void ClosedAccount_RejectsDepositAndWithdraw()
+    {
+        var account = OpenGelAccount();
+        account.Close();
+
+        var deposit = () => account.Deposit(Gel(10));
+        var withdraw = () => account.Withdraw(Gel(10));
+
+        deposit.Should().Throw<DomainException>().WithMessage("*closed*");
+        withdraw.Should().Throw<DomainException>().WithMessage("*closed*");
+    }
+
+    [Fact]
+    public void Account_DepositWithdrawThenClose_FullLifecycle()
+    {
+        var account = OpenGelAccount();
+        account.Deposit(Gel(100));
+        account.Withdraw(Gel(100));
+
+        account.Close();
+
+        account.Status.Should().Be(AccountStatus.Closed);
+        account.Version.Should().Be(3);
+        account.UncommittedEvents.Select(e => e.GetType()).Should().Equal(
+            typeof(AccountOpened),
+            typeof(MoneyDeposited),
+            typeof(MoneyWithdrawn),
+            typeof(AccountClosed));
+    }
+
 }
